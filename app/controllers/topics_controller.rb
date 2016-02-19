@@ -1,5 +1,6 @@
 class TopicsController < ApplicationController
   before_action :set_topic, only: [:show, :edit, :update, :destroy]
+  before_action :authenticate_user!
 
   # GET /topics
   # GET /topics.json
@@ -63,14 +64,30 @@ class TopicsController < ApplicationController
 
   def upvote
     @topic = Topic.find(params[:id])
-    @topic.votes.create
+
+    if !multi_user(@topic.votes, current_user.id)
+      vote = @topic.votes.create
+
+      vote.user_id = current_user.id
+      vote.save
+    else
+      flash[:notice] = "Only +1 once per user!"
+    end
+
     redirect_to topics_path
   end
 
   def downvote
     @topic = Topic.find(params[:id])
+
     if @topic.votes.last
-      @topic.votes.last.destroy
+      if multi_user(@topic.votes, current_user.id)
+        @topic.votes.last.destroy
+      else
+        flash[:notice] = "Only -1 once per user!"
+      end
+    else
+      flash[:notice] = "Votes reach to Zero. Not allow -1 !"
     end
     redirect_to topics_path
   end
@@ -84,5 +101,14 @@ class TopicsController < ApplicationController
     # Never trust parameters from the scary internet, only allow the white list through.
     def topic_params
       params.require(:topic).permit(:title, :description)
+    end
+
+    def multi_user(votes, userid)
+      votes.each do |v|
+        if v.user_id == userid
+          return true
+        end
+      end
+      return false
     end
 end
